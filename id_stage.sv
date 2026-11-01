@@ -20,53 +20,51 @@ module id_stage (
     output logic [6:0]  funct7
 );
 
-    logic [31:0] imm;
+    logic [2:0] imm_src;
 
-    assign opcode = instruction[6:0];
-    assign rd     = instruction[11:7];
-    assign funct3 = instruction[14:12];
-    assign rs1    = instruction[19:15];
-    assign rs2    = instruction[24:20];
-    assign funct7 = instruction[31:25];
+    // Decode instruction fields
+    decode_unit decoder (
+        .instr       (instruction),
+        .opcode      (opcode),
+        .rd          (rd),
+        .funct3      (funct3),
+        .rs1         (rs1),
+        .rs2         (rs2),
+        .funct7      (funct7),
+        .imm_i_raw   (),
+        .imm_s_raw   (),
+        .imm_b_raw   (),
+        .imm_u_raw   (),
+        .imm_j_raw   ()
+    );
 
+    // Select immediate format
     always_comb begin
         case (opcode)
             7'b0010011,
             7'b0000011,
-            7'b1100111: begin
-                imm = {{20{instruction[31]}}, instruction[31:20]};
-            end
+            7'b1100111: imm_src = 3'b000;
 
-            7'b0100011: begin
-                imm = {{20{instruction[31]}},
-                       instruction[31:25], instruction[11:7]};
-            end
-
-            7'b1100011: begin
-                imm = {{19{instruction[31]}}, instruction[31],
-                       instruction[7], instruction[30:25],
-                       instruction[11:8], 1'b0};
-            end
+            7'b0100011: imm_src = 3'b001;
+            7'b1100011: imm_src = 3'b010;
 
             7'b0110111,
-            7'b0010111: begin
-                imm = {instruction[31:12], 12'b0};
-            end
+            7'b0010111: imm_src = 3'b011;
 
-            7'b1101111: begin
-                imm = {{11{instruction[31]}}, instruction[31],
-                       instruction[19:12], instruction[20],
-                       instruction[30:21], 1'b0};
-            end
+            7'b1101111: imm_src = 3'b100;
 
-            default: begin
-                imm = 32'b0;
-            end
+            default: imm_src = 3'b000;
         endcase
     end
 
-    assign immediate = imm;
+    // Generate sign-extended immediate
+    imm_gen immediate_generator (
+        .instr   (instruction),
+        .imm_src (imm_src),
+        .imm_ext (immediate)
+    );
 
+    // Register file
     register_file rf (
         .clk        (clk),
         .reset      (rst),
